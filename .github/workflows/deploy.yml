@@ -1,4 +1,4 @@
-name: CI/CD Pipeline staging
+name: CI/CD Pipeline staging2
 
 on:
   push:
