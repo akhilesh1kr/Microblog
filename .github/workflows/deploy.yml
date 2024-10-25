@@ -71,10 +71,8 @@ jobs:
           package-name: ${{ env.IMAGE_NAME }}
           package-type: "container"
           min-versions-to-keep: 3  # Number of versions to keep
-          ignore-versions: ""      # Versions to ignore, use regex pattern if needed
+          ignore-versions: "^(?!.*${{ env.BRANCH_NAME }}).+$"      # Versions to ignore, use regex pattern if needed
           token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          DELETE_TAGS_REGEX: "^${{ env.BRANCH_NAME }}-"  # Regex to filter tags by branch name
 
   # deploy:
   #   runs-on: ubuntu-latest
