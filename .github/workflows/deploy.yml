@@ -4,11 +4,16 @@ on:
   push:
     branches:
       - master
+  # pull_request:
+  #   types:
+  #     - closed  # Trigger when a pull request is closed
+  #   branches:
+  #     - development
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.event.repository.name }}
-  OWNER: ${{ github.repository_owner }}
+  IMAGE_NAME: ${{ github.event.repository.name | toLower }}
+  OWNER: ${{ github.repository_owner | toLower }}
 
 jobs:
   build-and-push-image:
