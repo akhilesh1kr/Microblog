@@ -64,28 +64,37 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: List Docker Images
+      - name: Clean up older Docker images
         run: |
-          echo "Listing images in the registry:"
-          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions"
+          # Log in to the GitHub CLI using GITHUB_TOKEN
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
-      - name: Delete Old Docker Images
-        run: |
-          echo "Attempting to delete old images..."
-          versions=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions" | jq -r '.[] | .name')
-          echo "Found versions: $versions"
-          old_versions=$(echo "$versions" | grep -v "${{ env.BRANCH_NAME }}" | sort | head -n -3)
-          echo "Old versions to delete: $old_versions"
-          for version in $old_versions; do
-            echo "Deleting version: $version"
-            curl -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions/$version"
-          done
+          # List image versions and filter by branch name using GitHub CLI and jq
+          IMAGE_VERSIONS=$(gh api -H "Accept: application/vnd.github.v3+json" \
+            "/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions" --paginate | \
+            jq -r '.[] | select(.metadata.container.tags[] | startswith("${{ env.BRANCH_NAME }}")) | .id')
+
+          # Count the number of versions
+          TAG_COUNT=$(echo "$IMAGE_VERSIONS" | wc -l)
+          
+          # Set the maximum allowed number of images
+          MAX_IMAGES=3
+
+          echo "IMAGE_VERSIONS: $IMAGE_VERSIONS"
+          echo "TAG_COUNT: $TAG_COUNT"
+          echo "Attempting to delete old tags..."
+          
+          if [ "$TAG_COUNT" -gt "$MAX_IMAGES" ]; then
+            # Get the image IDs to delete (all but the most recent 3)
+            VERSIONS_TO_DELETE=$(echo "$IMAGE_VERSIONS" | tail -n +4)
+
+            echo "VERSIONS_TO_DELETE: $VERSIONS_TO_DELETE"
+            
+            # Loop through the IDs and delete them using GitHub CLI
+            for VERSION_ID in $VERSIONS_TO_DELETE; do
+              gh api -X DELETE "/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions/$VERSION_ID"
+            done
+          fi
 
 
       # - name: Delete Old Docker Images
