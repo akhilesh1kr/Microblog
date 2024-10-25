@@ -24,6 +24,7 @@ jobs:
         run: |
           echo "IMAGE_NAME=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
           echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          echo "BRANCH_NAME=$(echo '${{ github.ref_name }}' | tr '[:upper:]' '[:lower:]' | sed 's|refs/heads/||')" >> $GITHUB_ENV
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -52,8 +53,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value={{env.IMAGE_NAME}}-{{branch}}-{{sha}}
+            type=sha,prefix=${{ env.BRANCH_NAME }}-
+            type=raw,value={{env.IMAGE_NAME}}-${{ env.BRANCH_NAME }}-{{ github.sha }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -66,7 +67,7 @@ jobs:
       - name: Clean up older Docker images
         run: |
           # Get a list of existing tags sorted by creation date in descending order
-          IMAGE_TAGS=$(ghcr list-tags ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }} --format "{{ .Tag }}" --filter "branch={{ github.ref_name }}" --sort created_at:desc)
+          IMAGE_TAGS=$(ghcr list-tags ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }} --format "{{ .Tag }}" --filter "branch={{ env.BRANCH_NAME }}" --sort created_at:desc)
           
           # Count the number of tags
           TAG_COUNT=$(echo "$IMAGE_TAGS" | wc -l)
@@ -75,10 +76,8 @@ jobs:
           MAX_IMAGES=3
           
           if [ "$TAG_COUNT" -gt "$MAX_IMAGES" ]; then
-            # Get the tags to delete (all but the most recent 3 tags)
             TAGS_TO_DELETE=$(echo "$IMAGE_TAGS" | tail -n +4)
             
-            # Loop through the tags and delete them
             for TAG in $TAGS_TO_DELETE; do
               docker rmi ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:$TAG
             done
