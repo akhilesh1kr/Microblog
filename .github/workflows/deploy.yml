@@ -54,7 +54,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=sha,prefix=${{ env.BRANCH_NAME }}-
-            type=raw,value={{env.IMAGE_NAME}}-${{ env.BRANCH_NAME }}-{{ github.sha }}
+            type=raw,value={{env.IMAGE_NAME}}-${{ env.BRANCH_NAME }}-{{sha}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
