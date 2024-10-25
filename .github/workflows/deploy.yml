@@ -7,8 +7,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.event.repository.name.toLowerCase() }}
-  OWNER: ${{ github.repository_owner.toLowerCase() }}
 
 jobs:
   build-and-push-image:
@@ -21,6 +19,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up environment variables
+        run: |
+          echo "IMAGE_NAME=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -69,7 +72,7 @@ jobs:
           TAG_COUNT=$(echo "$IMAGE_TAGS" | wc -l)
           
           # Set the maximum allowed number of images
-          MAX_IMAGES=5
+          MAX_IMAGES=3
           
           if [ "$TAG_COUNT" -gt "$MAX_IMAGES" ]; then
             # Get the tags to delete (all but the most recent 3 tags)
