@@ -64,15 +64,39 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: List Docker Images
+        run: |
+          echo "Listing images in the registry:"
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions"
+
       - name: Delete Old Docker Images
-        uses: actions/delete-package-versions@v4
-        with:
-          owner: ${{ env.OWNER }}
-          package-name: ${{ env.IMAGE_NAME }}
-          package-type: "container"
-          min-versions-to-keep: 3  # Number of versions to keep
-          ignore-versions: "^(?!.*${{ env.BRANCH_NAME }}).+$"      # Versions to ignore, use regex pattern if needed
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Attempting to delete old images..."
+          versions=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions" | jq -r '.[] | .name')
+          echo "Found versions: $versions"
+          old_versions=$(echo "$versions" | grep -v "${{ env.BRANCH_NAME }}" | sort | head -n -3)
+          echo "Old versions to delete: $old_versions"
+          for version in $old_versions; do
+            echo "Deleting version: $version"
+            curl -X DELETE -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions/$version"
+          done
+
+
+      # - name: Delete Old Docker Images
+      #   uses: actions/delete-package-versions@v4
+      #   with:
+      #     owner: ${{ env.OWNER }}
+      #     package-name: ${{ env.IMAGE_NAME }}
+      #     package-type: "container"
+      #     min-versions-to-keep: 3  # Number of versions to keep
+      #     ignore-versions: "^(?!.*${{ env.BRANCH_NAME }}).+$"      # Versions to ignore, use regex pattern if needed
+      #     token: ${{ secrets.GITHUB_TOKEN }}
 
   # deploy:
   #   runs-on: ubuntu-latest
