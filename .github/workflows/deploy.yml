@@ -66,9 +66,15 @@ jobs:
 
       - name: Clean up older Docker images
         run: |
-          # Get a list of existing tags sorted by creation date in descending order
-          IMAGE_TAGS=$(ghcr list-tags ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }} --format "{{ .Tag }}" --filter "branch={{ env.BRANCH_NAME }}" --sort created_at:desc)
-          
+          # Log in to the GitHub CLI using GITHUB_TOKEN
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+          # List the images using GitHub CLI and filter by branch
+          IMAGE_TAGS=$(gh api -H "Accept: application/vnd.github.v3+json" \
+            "/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions" | \
+            jq -r '.[] | select(.metadata.container.tags[] | startswith("${{ env.BRANCH_NAME }}")) | .id' | \
+            sort -r)
+
           # Count the number of tags
           TAG_COUNT=$(echo "$IMAGE_TAGS" | wc -l)
           
@@ -76,10 +82,12 @@ jobs:
           MAX_IMAGES=3
           
           if [ "$TAG_COUNT" -gt "$MAX_IMAGES" ]; then
+            # Get the image IDs to delete (all but the most recent 3)
             TAGS_TO_DELETE=$(echo "$IMAGE_TAGS" | tail -n +4)
             
-            for TAG in $TAGS_TO_DELETE; do
-              docker rmi ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:$TAG
+            # Loop through the IDs and delete them using GitHub CLI
+            for ID in $TAGS_TO_DELETE; do
+              gh api -X DELETE "/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions/$ID"
             done
           fi
 
