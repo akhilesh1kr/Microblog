@@ -68,18 +68,22 @@ jobs:
         run: |
           # Log in to the GitHub CLI using GITHUB_TOKEN
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-          # List image versions and filter by branch name using GitHub CLI and jq
-          IMAGE_VERSIONS=$(gh api -H "Accept: application/vnd.github.v3+json" \
-            "/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions" --paginate | \
-            jq -r '.[] | select(.metadata.container.tags[] | startswith("${{ env.BRANCH_NAME }}")) | .id')
-
+      
+          # List image versions and filter by branch name using GitHub CLI
+          echo "Fetching image versions..."
+          API_RESPONSE=$(gh api -H "Accept: application/vnd.github.v3+json" \
+            "/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions" --paginate)
+            
+          echo "Raw API response: $API_RESPONSE"
+          
+          IMAGE_VERSIONS=$(echo "$API_RESPONSE" | jq -r '.[] | select(.metadata.container.tags[] | startswith("${{ env.BRANCH_NAME }}")) | .id')
+      
           # Count the number of versions
           TAG_COUNT=$(echo "$IMAGE_VERSIONS" | wc -l)
           
           # Set the maximum allowed number of images
           MAX_IMAGES=3
-
+      
           echo "IMAGE_VERSIONS: $IMAGE_VERSIONS"
           echo "TAG_COUNT: $TAG_COUNT"
           echo "Attempting to delete old tags..."
@@ -87,14 +91,16 @@ jobs:
           if [ "$TAG_COUNT" -gt "$MAX_IMAGES" ]; then
             # Get the image IDs to delete (all but the most recent 3)
             VERSIONS_TO_DELETE=$(echo "$IMAGE_VERSIONS" | tail -n +4)
-
+      
             echo "VERSIONS_TO_DELETE: $VERSIONS_TO_DELETE"
             
             # Loop through the IDs and delete them using GitHub CLI
             for VERSION_ID in $VERSIONS_TO_DELETE; do
+              echo "Deleting version ID: $VERSION_ID"
               gh api -X DELETE "/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions/$VERSION_ID"
             done
           fi
+
 
 
       # - name: Delete Old Docker Images
