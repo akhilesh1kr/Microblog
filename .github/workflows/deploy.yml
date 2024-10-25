@@ -64,32 +64,17 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Clean up older Docker images
-        run: |
-          # Log in to the GitHub CLI using GITHUB_TOKEN
-          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-          # List the images using GitHub CLI and filter by branch
-          IMAGE_TAGS=$(gh api -H "Accept: application/vnd.github.v3+json" \
-            "/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions" | \
-            jq -r '.[] | select(.metadata.container.tags[] | startswith("${{ env.BRANCH_NAME }}")) | .id' | \
-            sort -r)
-
-          # Count the number of tags
-          TAG_COUNT=$(echo "$IMAGE_TAGS" | wc -l)
-          
-          # Set the maximum allowed number of images
-          MAX_IMAGES=3
-          
-          if [ "$TAG_COUNT" -gt "$MAX_IMAGES" ]; then
-            # Get the image IDs to delete (all but the most recent 3)
-            TAGS_TO_DELETE=$(echo "$IMAGE_TAGS" | tail -n +4)
-            
-            # Loop through the IDs and delete them using GitHub CLI
-            for ID in $TAGS_TO_DELETE; do
-              gh api -X DELETE "/orgs/${{ env.OWNER }}/packages/container/${{ env.IMAGE_NAME }}/versions/$ID"
-            done
-          fi
+      - name: Delete Old Docker Images
+        uses: actions/delete-package-versions@v4
+        with:
+          owner: ${{ env.OWNER }}
+          package-name: ${{ env.IMAGE_NAME }}
+          package-type: "container"
+          min-versions-to-keep: 3  # Number of versions to keep
+          ignore-versions: ""      # Versions to ignore, use regex pattern if needed
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          DELETE_TAGS_REGEX: "^${{ env.BRANCH_NAME }}-"  # Regex to filter tags by branch name
 
   # deploy:
   #   runs-on: ubuntu-latest
